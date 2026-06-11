@@ -1,0 +1,11 @@
+{
+  "repos": [
+    { "name": "dems",    "path": "c:/dems-project/dems" },
+    { "name": "dems-ui", "path": "c:/dems-project/dems-ui" }
+  ],
+  "ports": {
+    "server": 3333,
+    "agent":  3334
+  },
+  "sessionsDir": "C:/Users/YuchenLin/.claude/sessions"
+}
