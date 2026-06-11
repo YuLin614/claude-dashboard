@@ -2,7 +2,7 @@ import json
 import asyncio
 import os
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 import session_reader
 
@@ -28,7 +28,7 @@ async def startup():
 
 
 def get_sessions_dir() -> str:
-    cfg = load_config()
+    cfg = _config if _config else load_config()
     return cfg.get("sessionsDir", "/sessions")
 
 
@@ -43,9 +43,9 @@ def get_config():
 
 
 @app.get("/events")
-async def events():
+async def events(request: Request):
     async def stream():
-        while True:
+        while not await request.is_disconnected():
             sessions = session_reader.read_all(get_sessions_dir())
             yield f"data: {json.dumps(sessions)}\n\n"
             await asyncio.sleep(1)
@@ -56,6 +56,7 @@ async def events():
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
         },
     )
 
