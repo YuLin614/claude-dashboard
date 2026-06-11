@@ -1,0 +1,11 @@
+services:
+  dashboard:
+    build: ./server
+    ports:
+      - "${SERVER_PORT:-3333}:3333"
+    volumes:
+      - "${SESSIONS_DIR}:/sessions:ro"
+      - "./config.json:/config.json:ro"
+    environment:
+      - CONFIG_PATH=/config.json
+    restart: unless-stopped
