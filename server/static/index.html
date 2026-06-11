@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Claude Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  header { padding: 16px 24px; border-bottom: 1px solid #30363d;
+           display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; font-weight: 600; color: #58a6ff; }
+  #conn-status { font-size: 12px; color: #8b949e; margin-left: auto; }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 0;
+            height: calc(100vh - 53px); }
+  #sessions { padding: 20px; overflow-y: auto; }
+  #sessions h2 { font-size: 13px; font-weight: 600; color: #8b949e;
+                 text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+  .session-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+                  padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+                  transition: border-color .15s, box-shadow .15s; }
+  .session-card:hover { border-color: #58a6ff; box-shadow: 0 0 0 1px #58a6ff22; }
+  .session-card.waiting { border-color: #d29922; box-shadow: 0 0 0 1px #d2992222; }
+  .session-card.stale { opacity: .5; }
+  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ticket { font-weight: 700; font-size: 14px; color: #58a6ff; }
+  .project { font-size: 12px; color: #8b949e; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
+           margin-left: auto; }
+  .badge.running { background: #1f6feb33; color: #58a6ff; }
+  .badge.waiting { background: #9e6a0333; color: #d29922; animation: pulse 2s infinite; }
+  .badge.starting { background: #30363d; color: #8b949e; }
+  .badge.stale { background: #30363d; color: #6e7681; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.6 } }
+  .current-tool { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
+  .current-tool span { color: #e6edf3; font-family: 'Consolas','Monaco',monospace; }
+  .branch { font-size: 11px; color: #6e7681; font-family: 'Consolas','Monaco',monospace; }
+  details { margin-top: 8px; }
+  summary { font-size: 11px; color: #6e7681; cursor: pointer; user-select: none; }
+  .activity-list { margin-top: 6px; }
+  .activity-item { font-size: 11px; font-family: 'Consolas','Monaco',monospace;
+                   color: #8b949e; padding: 2px 0; display: flex; gap: 8px; }
+  .activity-item .tool-name { color: #79c0ff; min-width: 60px; }
+  .activity-item .target { color: #8b949e; overflow: hidden; text-overflow: ellipsis;
+                           white-space: nowrap; max-width: 260px; }
+  #launch-panel { border-left: 1px solid #30363d; padding: 20px; overflow-y: auto; }
+  #launch-panel h2 { font-size: 13px; font-weight: 600; color: #8b949e;
+                     text-transform: uppercase; letter-spacing: .5px; margin-bottom: 16px; }
+  .repo-section { margin-bottom: 20px; }
+  .repo-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .repo-btn { width: 100%; padding: 8px 12px; background: #21262d; border: 1px solid #30363d;
+              border-radius: 6px; color: #e6edf3; font-size: 13px; cursor: pointer;
+              text-align: left; margin-bottom: 6px; transition: background .15s; }
+  .repo-btn:hover { background: #30363d; }
+  select { width: 100%; padding: 7px 10px; background: #21262d; border: 1px solid #30363d;
+           border-radius: 6px; color: #e6edf3; font-size: 12px; margin-bottom: 6px;
+           cursor: pointer; }
+  .launch-btn { width: 100%; padding: 8px 12px; background: #1f6feb; border: none;
+                border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600;
+                cursor: pointer; transition: background .15s; }
+  .launch-btn:hover { background: #388bfd; }
+  #status-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 4px 16px;
+                background: #161b22; border-top: 1px solid #30363d;
+                font-size: 11px; color: #8b949e; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Claude Dashboard</h1>
+  <span id="conn-status">connecting...</span>
+</header>
+
+<div class="layout">
+  <div id="sessions">
+    <h2>Active Sessions</h2>
+    <div id="session-list"><p style="color:#6e7681;font-size:13px">Waiting for sessions...</p></div>
+  </div>
+
+  <div id="launch-panel">
+    <h2>Launch</h2>
+    <div id="repos-container"></div>
+  </div>
+</div>
+
+<div id="status-bar">Ready</div>
+
+<script>
+const AGENT = 'http://localhost:3334';
+const SERVER = '';  // same origin
+
+let worktrees = {};
+
+// SSE
+let evtSource = null;
+function connectSSE() {
+  evtSource = new EventSource(`${SERVER}/events`);
+  evtSource.onopen = () => {
+    document.getElementById('conn-status').textContent = 'live';
+  };
+  evtSource.onmessage = (e) => {
+    renderSessions(JSON.parse(e.data));
+  };
+  evtSource.onerror = () => {
+    document.getElementById('conn-status').textContent = 'reconnecting...';
+    evtSource.close();
+    setTimeout(connectSSE, 2000);
+  };
+}
+
+// Render Sessions
+function renderSessions(sessions) {
+  const list = document.getElementById('session-list');
+  if (!sessions.length) {
+    list.innerHTML = '<p style="color:#6e7681;font-size:13px">No active sessions</p>';
+    return;
+  }
+  list.innerHTML = sessions.map(renderCard).join('');
+  list.querySelectorAll('.session-card').forEach((card, i) => {
+    card.addEventListener('click', () => focusSession(sessions[i]));
+  });
+}
+
+function renderCard(s) {
+  const ticket  = s.ticket || basename(s.cwd || '');
+  const project = basename(s.cwd || '');
+  const status  = s.stale ? 'stale' : (s.status || 'starting');
+  const badge   = { running: 'running', waiting: 'waiting', starting: 'starting', stale: 'stale' }[status] || status;
+  const badgeText = { running: 'running', waiting: 'waiting for input', starting: 'starting', stale: 'stale' }[status] || status;
+  const tool    = s.currentTool ? `${s.currentTool}: <span>${esc(s.currentTarget || '')}</span>` : '';
+  const activity = (s.recentActivity || []).slice(-5).reverse().map(a =>
+    `<div class="activity-item"><span class="tool-name">${esc(a.tool)}</span><span class="target">${esc(a.target||'')}</span></div>`
+  ).join('');
+
+  return `
+  <div class="session-card ${status}" data-id="${esc(s.sessionId)}">
+    <div class="card-header">
+      <span class="ticket">${esc(ticket)}</span>
+      <span class="project">${esc(project)}</span>
+      <span class="badge ${badge}">${badgeText}</span>
+    </div>
+    ${tool ? `<div class="current-tool">${tool}</div>` : ''}
+    <div class="branch">${esc(s.branch || '')}</div>
+    ${activity ? `<details><summary>Recent activity</summary><div class="activity-list">${activity}</div></details>` : ''}
+  </div>`;
+}
+
+// Focus Window
+async function focusSession(session) {
+  if (!session.hwnd || session.hwnd === 0) {
+    setStatus('Cannot focus: window handle unavailable');
+    return;
+  }
+  try {
+    const resp = await fetch(`${AGENT}/focus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwnd: session.hwnd }),
+    });
+    if (!resp.ok) setStatus(`Focus failed: ${resp.status}`);
+  } catch (e) {
+    setStatus(`Agent unreachable: ${e.message}`);
+  }
+}
+
+// Launch Panel
+async function loadConfig() {
+  try {
+    const cfg = await fetch(`${SERVER}/config`).then(r => r.json());
+    const wt  = await fetch(`${AGENT}/worktrees`).then(r => r.json()).catch(() => ({}));
+    worktrees = wt;
+    renderLaunchPanel(cfg.repos || []);
+  } catch (e) {
+    document.getElementById('repos-container').innerHTML =
+      '<p style="color:#6e7681;font-size:12px">Could not load config</p>';
+  }
+}
+
+function renderLaunchPanel(repos) {
+  const container = document.getElementById('repos-container');
+  container.innerHTML = repos.map(repo => {
+    const wts = worktrees[repo.name] || [];
+    const options = [
+      `<option value="${esc(repo.path)}" data-label="${esc(repo.name)} (main)">(main branch)</option>`,
+      ...wts.filter(w => w.path !== repo.path).map(w =>
+        `<option value="${esc(w.path)}" data-label="${esc(repo.name)}: ${esc(w.branch)}">${esc(w.branch)} (${esc(w.head)})</option>`
+      )
+    ].join('');
+    return `
+    <div class="repo-section">
+      <h3>${esc(repo.name)}</h3>
+      <select id="sel-${esc(repo.name)}">${options}</select>
+      <button class="launch-btn" onclick="launchSelected('${esc(repo.name)}')">Launch Claude</button>
+    </div>`;
+  }).join('');
+}
+
+async function launchSelected(repoName) {
+  const sel = document.getElementById(`sel-${repoName}`);
+  const path = sel.value;
+  const label = sel.selectedOptions[0]?.dataset.label || repoName;
+  try {
+    const resp = await fetch(`${AGENT}/launch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, label }),
+    });
+    const data = await resp.json();
+    setStatus(data.ok ? `Launched Claude in ${path}` : `Launch failed: ${data.error}`);
+  } catch (e) {
+    setStatus(`Agent unreachable: ${e.message}`);
+  }
+}
+
+// Helpers
+function basename(p) { return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() || p; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setStatus(msg) { document.getElementById('status-bar').textContent = msg; }
+
+// Init
+connectSSE();
+loadConfig();
+</script>
+</body>
+</html>
