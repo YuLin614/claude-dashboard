@@ -25,8 +25,7 @@ Write-Host "  Starting host agent..."
 $proc = Start-Process powershell.exe -ArgumentList @(
     "-ExecutionPolicy", "Bypass",
     "-WindowStyle", "Hidden",
-    "-File", "$scriptDir\host-agent\agent.ps1",
-    $scriptDir
+    "-File", "$scriptDir\host-agent\agent.ps1"
 ) -PassThru -WindowStyle Hidden
 $proc.Id | Set-Content $pidFile
 
