@@ -1,10 +1,14 @@
 $scriptDir = $PSScriptRoot
+$pidFile   = "$scriptDir\.agent-pid"
 
 Write-Host "Stopping Claude Dashboard..." -ForegroundColor Cyan
 
 docker compose -f "$scriptDir\docker-compose.yml" down
 
-$job = Get-Job -Name "claude-dashboard-agent" -ErrorAction SilentlyContinue
-if ($job) { Stop-Job $job; Remove-Job $job }
+if (Test-Path $pidFile) {
+    $agentPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+    if ($agentPid) { Stop-Process -Id $agentPid -Force -ErrorAction SilentlyContinue }
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "Stopped." -ForegroundColor Green

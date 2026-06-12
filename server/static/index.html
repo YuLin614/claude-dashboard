@@ -2,224 +2,215 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Claude Dashboard</title>
+<title>Claude</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-         background: #0d1117; color: #e6edf3; min-height: 100vh; }
-  header { padding: 16px 24px; border-bottom: 1px solid #30363d;
-           display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 16px; font-weight: 600; color: #58a6ff; }
-  #conn-status { font-size: 12px; color: #8b949e; margin-left: auto; }
-  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 0;
-            height: calc(100vh - 53px); }
-  #sessions { padding: 20px; overflow-y: auto; }
-  #sessions h2 { font-size: 13px; font-weight: 600; color: #8b949e;
-                 text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
-  .session-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-                  padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
-                  transition: border-color .15s, box-shadow .15s; }
-  .session-card:hover { border-color: #58a6ff; box-shadow: 0 0 0 1px #58a6ff22; }
-  .session-card.waiting { border-color: #d29922; box-shadow: 0 0 0 1px #d2992222; }
-  .session-card.stale { opacity: .5; }
-  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .ticket { font-weight: 700; font-size: 14px; color: #58a6ff; }
-  .project { font-size: 12px; color: #8b949e; }
-  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
-           margin-left: auto; }
-  .badge.running { background: #1f6feb33; color: #58a6ff; }
-  .badge.waiting { background: #9e6a0333; color: #d29922; animation: pulse 2s infinite; }
-  .badge.starting { background: #30363d; color: #8b949e; }
-  .badge.stale { background: #30363d; color: #6e7681; }
-  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.6 } }
-  .current-tool { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
-  .current-tool span { color: #e6edf3; font-family: 'Consolas','Monaco',monospace; }
-  .branch { font-size: 11px; color: #6e7681; font-family: 'Consolas','Monaco',monospace; }
-  details { margin-top: 8px; }
-  summary { font-size: 11px; color: #6e7681; cursor: pointer; user-select: none; }
-  .activity-list { margin-top: 6px; }
-  .activity-item { font-size: 11px; font-family: 'Consolas','Monaco',monospace;
-                   color: #8b949e; padding: 2px 0; display: flex; gap: 8px; }
-  .activity-item .tool-name { color: #79c0ff; min-width: 60px; }
-  .activity-item .target { color: #8b949e; overflow: hidden; text-overflow: ellipsis;
-                           white-space: nowrap; max-width: 260px; }
-  #launch-panel { border-left: 1px solid #30363d; padding: 20px; overflow-y: auto; }
-  #launch-panel h2 { font-size: 13px; font-weight: 600; color: #8b949e;
-                     text-transform: uppercase; letter-spacing: .5px; margin-bottom: 16px; }
-  .repo-section { margin-bottom: 20px; }
-  .repo-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-  .repo-btn { width: 100%; padding: 8px 12px; background: #21262d; border: 1px solid #30363d;
-              border-radius: 6px; color: #e6edf3; font-size: 13px; cursor: pointer;
-              text-align: left; margin-bottom: 6px; transition: background .15s; }
-  .repo-btn:hover { background: #30363d; }
-  select { width: 100%; padding: 7px 10px; background: #21262d; border: 1px solid #30363d;
-           border-radius: 6px; color: #e6edf3; font-size: 12px; margin-bottom: 6px;
+         background: #0d1117; color: #e6edf3; height: 100vh;
+         display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Header */
+  header { padding: 10px 14px; border-bottom: 1px solid #21262d;
+           display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  header h1 { font-size: 13px; font-weight: 700; color: #58a6ff; letter-spacing: .3px; }
+  #conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #3d444d;
+              margin-left: auto; flex-shrink: 0; }
+  #conn-dot.live { background: #3fb950; }
+  #conn-dot.err  { background: #f85149; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid #21262d; flex-shrink: 0; }
+  .tab { flex: 1; padding: 7px 0; font-size: 12px; font-weight: 600; text-align: center;
+         color: #6e7681; cursor: pointer; border-bottom: 2px solid transparent;
+         transition: color .15s; user-select: none; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+
+  /* Panels */
+  .panel { flex: 1; overflow-y: auto; padding: 10px; display: none; }
+  .panel.active { display: block; }
+
+  /* Session Cards */
+  .session-card { background: #161b22; border: 1px solid #21262d; border-radius: 6px;
+                  padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+                  transition: border-color .12s; }
+  .session-card:hover { border-color: #58a6ff44; }
+  .session-card.waiting { border-color: #d29922; }
+  .session-card.stale { opacity: .45; }
+
+  .card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .ticket { font-size: 13px; font-weight: 700; color: #58a6ff; }
+  .project { font-size: 11px; color: #6e7681; }
+  .badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+           margin-left: auto; white-space: nowrap; }
+  .badge.running  { background: #1f6feb22; color: #58a6ff; }
+  .badge.waiting  { background: #9e6a0322; color: #d29922; animation: blink 1.8s infinite; }
+  .badge.starting { background: #21262d; color: #6e7681; }
+  .badge.stale    { background: #21262d; color: #484f58; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .card-tool { font-size: 11px; color: #6e7681; white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  .card-tool b { color: #8b949e; font-weight: 600; }
+  .branch { font-size: 10px; color: #3d444d; font-family: monospace; margin-top: 2px; }
+
+  details { margin-top: 6px; }
+  summary { font-size: 10px; color: #484f58; cursor: pointer; user-select: none; }
+  .act-item { font-size: 10px; font-family: monospace; display: flex; gap: 6px;
+              color: #6e7681; padding: 1px 0; }
+  .act-item .t { color: #58a6ff; width: 52px; flex-shrink: 0; overflow: hidden;
+                 text-overflow: ellipsis; }
+  .act-item .p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Launch panel */
+  .repo-block { margin-bottom: 14px; }
+  .repo-name { font-size: 11px; font-weight: 700; color: #8b949e; margin-bottom: 6px;
+               text-transform: uppercase; letter-spacing: .4px; }
+  select { width: 100%; padding: 6px 8px; background: #161b22; border: 1px solid #21262d;
+           border-radius: 5px; color: #e6edf3; font-size: 12px; margin-bottom: 6px;
            cursor: pointer; }
-  .launch-btn { width: 100%; padding: 8px 12px; background: #1f6feb; border: none;
-                border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600;
-                cursor: pointer; transition: background .15s; }
+  .launch-btn { width: 100%; padding: 7px; background: #1f6feb; border: none;
+                border-radius: 5px; color: #fff; font-size: 12px; font-weight: 600;
+                cursor: pointer; transition: background .12s; }
   .launch-btn:hover { background: #388bfd; }
-  #status-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 4px 16px;
-                background: #161b22; border-top: 1px solid #30363d;
-                font-size: 11px; color: #8b949e; }
+
+  /* Status bar */
+  #status { font-size: 10px; color: #484f58; padding: 4px 14px;
+            border-top: 1px solid #21262d; flex-shrink: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .empty { font-size: 12px; color: #484f58; text-align: center; margin-top: 24px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Claude Dashboard</h1>
-  <span id="conn-status">connecting...</span>
+  <h1>Claude Sessions</h1>
+  <div id="conn-dot" title="SSE connection"></div>
 </header>
 
-<div class="layout">
-  <div id="sessions">
-    <h2>Active Sessions</h2>
-    <div id="session-list"><p style="color:#6e7681;font-size:13px">Waiting for sessions...</p></div>
-  </div>
-
-  <div id="launch-panel">
-    <h2>Launch</h2>
-    <div id="repos-container"></div>
-  </div>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('sessions', this)">Sessions</div>
+  <div class="tab" onclick="switchTab('launch', this)">Launch</div>
 </div>
 
-<div id="status-bar">Ready</div>
+<div id="sessions" class="panel active">
+  <div id="session-list"><p class="empty">Waiting for sessions…</p></div>
+</div>
+
+<div id="launch" class="panel">
+  <div id="repos-container"><p class="empty">Loading…</p></div>
+</div>
+
+<div id="status">Ready</div>
 
 <script>
 const AGENT = 'http://localhost:3334';
-const SERVER = '';  // same origin
-
 let worktrees = {};
+
+function switchTab(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
 
 // SSE
 let evtSource = null;
 function connectSSE() {
-  evtSource = new EventSource(`${SERVER}/events`);
-  evtSource.onopen = () => {
-    document.getElementById('conn-status').textContent = 'live';
-  };
-  evtSource.onmessage = (e) => {
-    renderSessions(JSON.parse(e.data));
-  };
-  evtSource.onerror = () => {
-    document.getElementById('conn-status').textContent = 'reconnecting...';
-    evtSource.close();
-    setTimeout(connectSSE, 2000);
-  };
+  evtSource = new EventSource('/events');
+  evtSource.onopen = () => dot('live');
+  evtSource.onmessage = e => renderSessions(JSON.parse(e.data));
+  evtSource.onerror = () => { dot('err'); evtSource.close(); setTimeout(connectSSE, 3000); };
 }
+function dot(cls) { document.getElementById('conn-dot').className = cls; }
 
-// Render Sessions
 function renderSessions(sessions) {
   const list = document.getElementById('session-list');
-  if (!sessions.length) {
-    list.innerHTML = '<p style="color:#6e7681;font-size:13px">No active sessions</p>';
-    return;
-  }
+  if (!sessions.length) { list.innerHTML = '<p class="empty">No active sessions</p>'; return; }
   list.innerHTML = sessions.map(renderCard).join('');
-  list.querySelectorAll('.session-card').forEach((card, i) => {
-    card.addEventListener('click', () => focusSession(sessions[i]));
-  });
+  list.querySelectorAll('.session-card').forEach((el, i) =>
+    el.addEventListener('click', () => focusSession(sessions[i]))
+  );
 }
 
 function renderCard(s) {
-  const ticket  = s.ticket || basename(s.cwd || '');
+  const ticket = s.ticket || basename(s.cwd || '');
   const project = basename(s.cwd || '');
-  const status  = s.stale ? 'stale' : (s.status || 'starting');
-  const badge   = { running: 'running', waiting: 'waiting', starting: 'starting', stale: 'stale' }[status] || status;
-  const badgeText = { running: 'running', waiting: 'waiting for input', starting: 'starting', stale: 'stale' }[status] || status;
-  const tool    = s.currentTool ? `${esc(s.currentTool)}: <span>${esc(s.currentTarget || '')}</span>` : '';
-  const activity = (s.recentActivity || []).slice(-5).reverse().map(a =>
-    `<div class="activity-item"><span class="tool-name">${esc(a.tool)}</span><span class="target">${esc(a.target||'')}</span></div>`
-  ).join('');
-
-  return `
-  <div class="session-card ${status}" data-id="${esc(s.sessionId)}">
-    <div class="card-header">
+  const status = s.stale ? 'stale' : (s.status || 'starting');
+  const label = { running:'running', waiting:'waiting', starting:'…', stale:'stale' }[status] || status;
+  const tool = s.currentTool
+    ? `<b>${esc(s.currentTool)}</b> ${esc(s.currentTarget || '')}`
+    : '';
+  const acts = (s.recentActivity || []).slice(-5).reverse()
+    .map(a => `<div class="act-item"><span class="t">${esc(a.tool)}</span><span class="p">${esc(a.target||'')}</span></div>`)
+    .join('');
+  return `<div class="session-card ${status}">
+    <div class="card-top">
       <span class="ticket">${esc(ticket)}</span>
       <span class="project">${esc(project)}</span>
-      <span class="badge ${badge}">${badgeText}</span>
+      <span class="badge ${status}">${label}</span>
     </div>
-    ${tool ? `<div class="current-tool">${tool}</div>` : ''}
-    <div class="branch">${esc(s.branch || '')}</div>
-    ${activity ? `<details><summary>Recent activity</summary><div class="activity-list">${activity}</div></details>` : ''}
+    ${tool ? `<div class="card-tool">${tool}</div>` : ''}
+    <div class="branch">${esc(s.branch||'')}</div>
+    ${acts ? `<details><summary>activity</summary>${acts}</details>` : ''}
   </div>`;
 }
 
-// Focus Window
-async function focusSession(session) {
-  if (!session.hwnd || session.hwnd === 0) {
-    setStatus('Cannot focus: window handle unavailable');
-    return;
-  }
+async function focusSession(s) {
+  if (!s.hwnd || s.hwnd === 0) { setStatus('No window handle'); return; }
   try {
-    const resp = await fetch(`${AGENT}/focus`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hwnd: session.hwnd }),
+    await fetch(`${AGENT}/focus`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ hwnd: s.hwnd })
     });
-    if (!resp.ok) setStatus(`Focus failed: ${resp.status}`);
-  } catch (e) {
-    setStatus(`Agent unreachable: ${e.message}`);
-  }
+  } catch(e) { setStatus('Agent unreachable'); }
 }
 
-// Launch Panel
-async function loadConfig() {
+async function loadLaunch() {
   try {
-    const cfg = await fetch(`${SERVER}/config`).then(r => r.json());
+    const cfg = await fetch('/config').then(r => r.json());
     const wt  = await fetch(`${AGENT}/worktrees`).then(r => r.json()).catch(() => ({}));
     worktrees = wt;
-    renderLaunchPanel(cfg.repos || []);
-  } catch (e) {
-    document.getElementById('repos-container').innerHTML =
-      '<p style="color:#6e7681;font-size:12px">Could not load config</p>';
+    const container = document.getElementById('repos-container');
+    if (!cfg.repos?.length) { container.innerHTML = '<p class="empty">No repos configured</p>'; return; }
+    container.innerHTML = cfg.repos.map(repo => {
+      const wts = (worktrees[repo.name] || []).filter(w => w.path !== repo.path);
+      const opts = [
+        `<option value="${esc(repo.path)}" data-label="${esc(repo.name)}">(main)</option>`,
+        ...wts.map(w => `<option value="${esc(w.path)}" data-label="${esc(repo.name)}: ${esc(w.branch)}">${esc(w.branch)} (${esc(w.head)})</option>`)
+      ].join('');
+      return `<div class="repo-block">
+        <div class="repo-name">${esc(repo.name)}</div>
+        <select id="sel-${esc(repo.name)}">${opts}</select>
+        <button class="launch-btn" onclick="launch(${JSON.stringify(repo.name)})">Launch Claude</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('repos-container').innerHTML = '<p class="empty">Could not load config</p>';
   }
 }
 
-function renderLaunchPanel(repos) {
-  const container = document.getElementById('repos-container');
-  container.innerHTML = repos.map(repo => {
-    const wts = worktrees[repo.name] || [];
-    const options = [
-      `<option value="${esc(repo.path)}" data-label="${esc(repo.name)} (main)">(main branch)</option>`,
-      ...wts.filter(w => w.path !== repo.path).map(w =>
-        `<option value="${esc(w.path)}" data-label="${esc(repo.name)}: ${esc(w.branch)}">${esc(w.branch)} (${esc(w.head)})</option>`
-      )
-    ].join('');
-    return `
-    <div class="repo-section">
-      <h3>${esc(repo.name)}</h3>
-      <select id="sel-${esc(repo.name)}">${options}</select>
-      <button class="launch-btn" onclick="launchSelected(${JSON.stringify(repo.name)})">Launch Claude</button>
-    </div>`;
-  }).join('');
-}
-
-async function launchSelected(repoName) {
-  const sel = document.getElementById(`sel-${repoName}`);
-  const path = sel.value;
+async function launch(repoName) {
+  const sel   = document.getElementById(`sel-${repoName}`);
+  const path  = sel.value;
   const label = sel.selectedOptions[0]?.dataset.label || repoName;
   try {
-    const resp = await fetch(`${AGENT}/launch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, label }),
+    const r = await fetch(`${AGENT}/launch`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ path, label })
     });
-    const data = await resp.json();
-    setStatus(data.ok ? `Launched Claude in ${path}` : `Launch failed: ${data.error}`);
-  } catch (e) {
-    setStatus(`Agent unreachable: ${e.message}`);
-  }
+    const d = await r.json();
+    setStatus(d.ok ? `Launched: ${label}` : `Error: ${d.error}`);
+  } catch(e) { setStatus('Agent unreachable'); }
 }
 
-// Helpers
-function basename(p) { return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() || p; }
+function basename(p) { return p.replace(/\\/g,'/').split('/').filter(Boolean).pop() || p; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function setStatus(msg) { document.getElementById('status-bar').textContent = msg; }
+function setStatus(m) { document.getElementById('status').textContent = m; }
 
-// Init
 connectSSE();
-loadConfig();
+loadLaunch();
 </script>
 </body>
 </html>

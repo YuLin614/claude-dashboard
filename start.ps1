@@ -1,6 +1,7 @@
 param([switch]$NoBrowser)
 
 $scriptDir = $PSScriptRoot
+$pidFile   = "$scriptDir\.agent-pid"
 
 Write-Host "Starting Claude Dashboard..." -ForegroundColor Cyan
 
@@ -12,30 +13,63 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Start PS agent as background job (stop existing if running)
-$existing = Get-Job -Name "claude-dashboard-agent" -ErrorAction SilentlyContinue
-if ($existing) {
-    Write-Host "  Stopping previous agent..."
-    Stop-Job $existing; Remove-Job $existing
+# Kill previous agent if PID file exists
+if (Test-Path $pidFile) {
+    $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+    if ($oldPid) { Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue }
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
 }
-Write-Host "  Starting host agent..."
-Start-Job -Name "claude-dashboard-agent" `
-    -FilePath "$scriptDir\host-agent\agent.ps1" `
-    -ArgumentList $scriptDir | Out-Null
 
-# Wait briefly for agent to start
+# Start agent as a hidden background process (survives across PS sessions)
+Write-Host "  Starting host agent..."
+$proc = Start-Process powershell.exe -ArgumentList @(
+    "-ExecutionPolicy", "Bypass",
+    "-WindowStyle", "Hidden",
+    "-File", "$scriptDir\host-agent\agent.ps1",
+    $scriptDir
+) -PassThru -WindowStyle Hidden
+$proc.Id | Set-Content $pidFile
+
 Start-Sleep 2
 
-# Verify
 try {
-    $health = Invoke-WebRequest "http://localhost:3334/health" -UseBasicParsing -TimeoutSec 3
+    Invoke-WebRequest "http://localhost:3334/health" -UseBasicParsing -TimeoutSec 3 | Out-Null
     Write-Host "  Agent: OK" -ForegroundColor Green
 } catch {
     Write-Host "  Agent: not responding (may still be starting)" -ForegroundColor Yellow
 }
 
 if (-not $NoBrowser) {
-    Start-Process msedge "http://localhost:3333"
+    # Open as floating app window (no browser chrome, always-on-top)
+    $edgeProc = Start-Process msedge.exe -ArgumentList @(
+        "--app=http://localhost:3333",
+        "--window-size=380,720",
+        "--window-position=1540,0"
+    ) -PassThru
+
+    Start-Sleep 2
+
+    # Set always-on-top via Win32 API
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class FloatWin {
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOSIZE = 0x0001;
+}
+'@ -ErrorAction SilentlyContinue
+
+    try {
+        $hwnd = $edgeProc.MainWindowHandle
+        if ($hwnd -ne [IntPtr]::Zero) {
+            [FloatWin]::SetWindowPos($hwnd, [FloatWin]::HWND_TOPMOST, 0, 0, 0, 0,
+                [FloatWin]::SWP_NOMOVE -bor [FloatWin]::SWP_NOSIZE) | Out-Null
+            Write-Host "  Dashboard: floating window OK" -ForegroundColor Green
+        }
+    } catch {}
 }
 
 Write-Host ""
