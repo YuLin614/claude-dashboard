@@ -39,36 +39,9 @@ try {
 }
 
 if (-not $NoBrowser) {
-    # Open as floating app window (no browser chrome, always-on-top)
-    $edgeProc = Start-Process msedge.exe -ArgumentList @(
-        "--app=http://localhost:3333",
-        "--window-size=380,720",
-        "--window-position=1540,0"
-    ) -PassThru
-
-    Start-Sleep 2
-
-    # Set always-on-top via Win32 API
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public class FloatWin {
-    [DllImport("user32.dll")]
-    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    public const uint SWP_NOMOVE = 0x0002;
-    public const uint SWP_NOSIZE = 0x0001;
-}
-'@ -ErrorAction SilentlyContinue
-
-    try {
-        $hwnd = $edgeProc.MainWindowHandle
-        if ($hwnd -ne [IntPtr]::Zero) {
-            [FloatWin]::SetWindowPos($hwnd, [FloatWin]::HWND_TOPMOST, 0, 0, 0, 0,
-                [FloatWin]::SWP_NOMOVE -bor [FloatWin]::SWP_NOSIZE) | Out-Null
-            Write-Host "  Dashboard: floating window OK" -ForegroundColor Green
-        }
-    } catch {}
+    # Launch PyWebView app window (native, always-on-top)
+    Start-Process pythonw.exe -ArgumentList "$scriptDir\app.py" -WorkingDirectory $scriptDir
+    Write-Host "  Dashboard window: launching..." -ForegroundColor Green
 }
 
 Write-Host ""
