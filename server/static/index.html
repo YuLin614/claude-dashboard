@@ -127,7 +127,7 @@ function renderCard(s) {
   const status  = s.stale ? 'stale' : (s.status || 'starting');
   const badge   = { running: 'running', waiting: 'waiting', starting: 'starting', stale: 'stale' }[status] || status;
   const badgeText = { running: 'running', waiting: 'waiting for input', starting: 'starting', stale: 'stale' }[status] || status;
-  const tool    = s.currentTool ? `${s.currentTool}: <span>${esc(s.currentTarget || '')}</span>` : '';
+  const tool    = s.currentTool ? `${esc(s.currentTool)}: <span>${esc(s.currentTarget || '')}</span>` : '';
   const activity = (s.recentActivity || []).slice(-5).reverse().map(a =>
     `<div class="activity-item"><span class="tool-name">${esc(a.tool)}</span><span class="target">${esc(a.target||'')}</span></div>`
   ).join('');
@@ -190,7 +190,7 @@ function renderLaunchPanel(repos) {
     <div class="repo-section">
       <h3>${esc(repo.name)}</h3>
       <select id="sel-${esc(repo.name)}">${options}</select>
-      <button class="launch-btn" onclick="launchSelected('${esc(repo.name)}')">Launch Claude</button>
+      <button class="launch-btn" onclick="launchSelected(${JSON.stringify(repo.name)})">Launch Claude</button>
     </div>`;
   }).join('');
 }
