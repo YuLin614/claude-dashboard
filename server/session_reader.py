@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-STALE_MINUTES = 5
+STALE_MINUTES = 30
 
 
 def parse_ticket(branch: str) -> str:
@@ -27,7 +27,7 @@ def read_all(sessions_dir: str) -> list[dict]:
     sessions = []
     for f in path.glob("*.json"):
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
+            data = json.loads(f.read_text(encoding="utf-8-sig"))
             data["stale"] = is_stale(data.get("lastActivity", ""))
             # Backfill ticket if missing
             if not data.get("ticket") and data.get("branch"):

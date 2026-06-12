@@ -31,8 +31,8 @@ async def startup():
 
 
 def get_sessions_dir() -> str:
-    cfg = _config if _config else load_config()
-    return cfg.get("sessionsDir", "/sessions")
+    # SESSIONS_DIR env var overrides config (used in Docker where mount is /sessions)
+    return os.environ.get("SESSIONS_DIR") or (_config if _config else load_config()).get("sessionsDir", "/sessions")
 
 
 @app.get("/sessions")

@@ -8,4 +8,5 @@ services:
       - "./config.json:/config.json:ro"
     environment:
       - CONFIG_PATH=/config.json
+      - SESSIONS_DIR=/sessions
     restart: unless-stopped
