@@ -25,17 +25,18 @@ try {
     $hookEvent = $data.hook_event_name
 
     if ($hookEvent -eq "SessionStart" -or (-not (Test-Path $sessionFile))) {
-        # Walk process tree to find the PowerShell/WindowsTerminal window PID
+        # Walk process tree to find the user's PowerShell PID (skip hook subprocess itself)
         $consolePid = 0
         try {
-            $cur = $PID
+            # Start from parent of this hook process (hook itself is powershell, skip it)
+            $cur = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -Property ParentProcessId -ErrorAction Stop).ParentProcessId
             for ($i = 0; $i -lt 8; $i++) {
+                if ($cur -le 4) { break }
                 $p = Get-CimInstance Win32_Process -Filter "ProcessId=$cur" -Property Name,ParentProcessId -ErrorAction Stop
                 if ($p.Name -in @('powershell.exe','pwsh.exe','WindowsTerminal.exe','cmd.exe')) {
                     $consolePid = $cur; break
                 }
                 $cur = $p.ParentProcessId
-                if ($cur -le 4) { break }
             }
         } catch {}
 

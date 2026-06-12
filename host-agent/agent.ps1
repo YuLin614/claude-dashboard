@@ -151,6 +151,11 @@ try {
                     }
                 }
             }
+            elseif ($path -match '^/pid/(\d+)/alive$' -and $method -eq "GET") {
+                $checkPid = [int]$Matches[1]
+                $alive = $null -ne (Get-Process -Id $checkPid -ErrorAction SilentlyContinue)
+                Send-Response $context 200 @{ alive = $alive; pid = $checkPid }
+            }
             elseif ($path -eq "/health" -and $method -eq "GET") {
                 Send-Response $context 200 @{ ok = $true; port = $port }
             }

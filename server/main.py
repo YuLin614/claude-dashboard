@@ -37,7 +37,9 @@ def get_sessions_dir() -> str:
 
 @app.get("/sessions")
 def get_sessions():
-    return session_reader.read_all(get_sessions_dir())
+    sessions = session_reader.read_all(get_sessions_dir())
+    # Filter sessions whose consolePid process is dead
+    return [s for s in sessions if is_pid_alive(s.get("consolePid", 0))]
 
 
 @app.get("/config")
@@ -92,6 +94,23 @@ def _proxy_post(path: str, body: bytes):
 @app.get("/agent/worktrees")
 def agent_worktrees(repo: str = None):
     return _proxy_get("/worktrees", f"repo={repo}" if repo else "")
+
+
+_pid_cache: dict = {}  # pid -> (alive, timestamp)
+
+def is_pid_alive(pid: int) -> bool:
+    if not pid:
+        return True
+    import time
+    now = time.time()
+    if pid in _pid_cache:
+        alive, ts = _pid_cache[pid]
+        if now - ts < 10:  # cache 10s
+            return alive
+    result = _proxy_get(f"/pid/{pid}/alive")
+    alive = result.get("alive", True)
+    _pid_cache[pid] = (alive, now)
+    return alive
 
 
 @app.post("/agent/focus")
