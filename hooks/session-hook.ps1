@@ -48,7 +48,7 @@ public class ConWin {
         $session = [ordered]@{
             sessionId      = $sessionId
             hwnd           = $hwnd
-            cwd            = $PWD.Path
+            cwd            = if ($data.cwd) { $data.cwd } else { $PWD.Path }
             branch         = $branch
             ticket         = $ticket
             status         = "starting"
