@@ -1,10 +1,13 @@
 import json
 import asyncio
 import os
+import urllib.request
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 import session_reader
+
+AGENT_URL = os.environ.get("AGENT_URL", "http://host.docker.internal:3334")
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config.json")
 
@@ -59,6 +62,46 @@ async def events(request: Request):
             "Connection": "keep-alive",
         },
     )
+
+
+def _proxy_get(path: str, query: str = ""):
+    url = f"{AGENT_URL}{path}"
+    if query:
+        url += f"?{query}"
+    try:
+        req = urllib.request.Request(url, headers={"Host": "localhost:3334"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+    except Exception:
+        return {}
+
+
+def _proxy_post(path: str, body: bytes):
+    req = urllib.request.Request(
+        f"{AGENT_URL}{path}", data=body,
+        headers={"Content-Type": "application/json", "Host": "localhost:3334"},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/agent/worktrees")
+def agent_worktrees(repo: str = None):
+    return _proxy_get("/worktrees", f"repo={repo}" if repo else "")
+
+
+@app.post("/agent/focus")
+async def agent_focus(request: Request):
+    return _proxy_post("/focus", await request.body())
+
+
+@app.post("/agent/launch")
+async def agent_launch(request: Request):
+    return _proxy_post("/launch", await request.body())
 
 
 STATIC_DIR = Path(__file__).parent / "static"
