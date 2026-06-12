@@ -25,18 +25,19 @@ try {
     $hookEvent = $data.hook_event_name
 
     if ($hookEvent -eq "SessionStart" -or (-not (Test-Path $sessionFile))) {
-        # Get console window handle for later focus
-        Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public class ConWin {
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-}
-'@ -ErrorAction SilentlyContinue
-
-        $hwnd = 0
-        try { $hwnd = [ConWin]::GetConsoleWindow().ToInt64() } catch {}
+        # Walk process tree to find the PowerShell/WindowsTerminal window PID
+        $consolePid = 0
+        try {
+            $cur = $PID
+            for ($i = 0; $i -lt 8; $i++) {
+                $p = Get-CimInstance Win32_Process -Filter "ProcessId=$cur" -Property Name,ParentProcessId -ErrorAction Stop
+                if ($p.Name -in @('powershell.exe','pwsh.exe','WindowsTerminal.exe','cmd.exe')) {
+                    $consolePid = $cur; break
+                }
+                $cur = $p.ParentProcessId
+                if ($cur -le 4) { break }
+            }
+        } catch {}
 
         $branch = ""
         $ticket = ""
@@ -47,7 +48,8 @@ public class ConWin {
 
         $session = [ordered]@{
             sessionId      = $sessionId
-            hwnd           = $hwnd
+            consolePid     = $consolePid
+            hwnd           = 0
             cwd            = if ($data.cwd) { $data.cwd } else { $PWD.Path }
             branch         = $branch
             ticket         = $ticket

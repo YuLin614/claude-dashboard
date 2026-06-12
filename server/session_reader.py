@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 STALE_MINUTES = 30
+DEAD_STARTING_MINUTES = 2  # "starting" sessions older than this = Claude never started
 
 
 def parse_ticket(branch: str) -> str:
@@ -28,6 +29,15 @@ def read_all(sessions_dir: str) -> list[dict]:
     for f in path.glob("*.json"):
         try:
             data = json.loads(f.read_text(encoding="utf-8-sig"))
+            # Skip sessions that got stuck in "starting" > 2 min (Claude never ran)
+            if data.get("status") == "starting":
+                age = timedelta(minutes=DEAD_STARTING_MINUTES)
+                try:
+                    dt = datetime.fromisoformat(data["lastActivity"].replace("Z", "+00:00"))
+                    if (datetime.now(timezone.utc) - dt) > age:
+                        continue
+                except Exception:
+                    continue
             data["stale"] = is_stale(data.get("lastActivity", ""))
             # Backfill ticket if missing
             if not data.get("ticket") and data.get("branch"):

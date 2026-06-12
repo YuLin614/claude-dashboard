@@ -77,13 +77,32 @@ try {
         try {
             if ($path -eq "/focus" -and $method -eq "POST") {
                 $body = [System.IO.StreamReader]::new($req.InputStream).ReadToEnd() | ConvertFrom-Json
-                $hwnd = [IntPtr]$body.hwnd
-                if ([WinUser]::IsWindow($hwnd)) {
-                    [WinUser]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
-                    [WinUser]::SetForegroundWindow($hwnd) | Out-Null
+
+                # Prefer consolePid (works with Windows Terminal); fall back to hwnd
+                $focused = $false
+                if ($body.consolePid -and $body.consolePid -gt 0) {
+                    try {
+                        $proc = Get-Process -Id $body.consolePid -ErrorAction Stop
+                        $hwnd = $proc.MainWindowHandle
+                        if ($hwnd -ne [IntPtr]::Zero) {
+                            [WinUser]::ShowWindow($hwnd, 9) | Out-Null
+                            [WinUser]::SetForegroundWindow($hwnd) | Out-Null
+                            $focused = $true
+                        }
+                    } catch {}
+                }
+                if (-not $focused -and $body.hwnd -and $body.hwnd -ne 0) {
+                    $hwnd = [IntPtr]$body.hwnd
+                    if ([WinUser]::IsWindow($hwnd)) {
+                        [WinUser]::ShowWindow($hwnd, 9) | Out-Null
+                        [WinUser]::SetForegroundWindow($hwnd) | Out-Null
+                        $focused = $true
+                    }
+                }
+                if ($focused) {
                     Send-Response $context 200 @{ ok = $true }
                 } else {
-                    Send-Response $context 404 @{ ok = $false; error = "window handle invalid" }
+                    Send-Response $context 404 @{ ok = $false; error = "no focusable window found" }
                 }
             }
             elseif ($path -eq "/launch" -and $method -eq "POST") {
