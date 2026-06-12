@@ -193,16 +193,34 @@ async function loadLaunch() {
 
 async function launch(repoName) {
   const sel   = document.getElementById(`sel-${repoName}`);
+  const btn   = sel.nextElementSibling;
   const path  = sel.value;
   const label = sel.selectedOptions[0]?.dataset.label || repoName;
+
+  btn.textContent = 'Launching…';
+  btn.disabled = true;
+  btn.style.background = '#388bfd';
+
   try {
     const r = await fetch(`${AGENT}/launch`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ path, label })
     });
     const d = await r.json();
-    setStatus(d.ok ? `Launched: ${label}` : `Error: ${d.error}`);
-  } catch(e) { setStatus('Agent unreachable'); }
+    if (d.ok) {
+      btn.textContent = 'Launched!';
+      btn.style.background = '#238636';
+      setTimeout(() => { btn.textContent = 'Launch Claude'; btn.style.background = ''; btn.disabled = false; }, 3000);
+    } else {
+      btn.textContent = `Error: ${d.error}`;
+      btn.style.background = '#b62324';
+      setTimeout(() => { btn.textContent = 'Launch Claude'; btn.style.background = ''; btn.disabled = false; }, 4000);
+    }
+  } catch(e) {
+    btn.textContent = 'Agent unreachable';
+    btn.style.background = '#b62324';
+    setTimeout(() => { btn.textContent = 'Launch Claude'; btn.style.background = ''; btn.disabled = false; }, 4000);
+  }
 }
 
 function basename(p) { return p.replace(/\\/g,'/').split('/').filter(Boolean).pop() || p; }

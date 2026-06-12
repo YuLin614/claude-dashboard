@@ -100,7 +100,7 @@ try {
                         "-NoExit",
                         "-Command",
                         "Set-Location '$safePath'; Write-Host 'Starting Claude - $safeLabel'; claude"
-                    )
+                    ) -WindowStyle Normal
                     Send-Response $context 200 @{ ok = $true; path = $launchPath }
                 }
             }
