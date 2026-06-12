@@ -77,20 +77,32 @@ try {
         try {
             if ($path -eq "/focus" -and $method -eq "POST") {
                 $body = [System.IO.StreamReader]::new($req.InputStream).ReadToEnd() | ConvertFrom-Json
-
-                # Prefer consolePid (works with Windows Terminal); fall back to hwnd
                 $focused = $false
+
                 if ($body.consolePid -and $body.consolePid -gt 0) {
                     try {
-                        $proc = Get-Process -Id $body.consolePid -ErrorAction Stop
-                        $hwnd = $proc.MainWindowHandle
-                        if ($hwnd -ne [IntPtr]::Zero) {
-                            [WinUser]::ShowWindow($hwnd, 9) | Out-Null
-                            [WinUser]::SetForegroundWindow($hwnd) | Out-Null
-                            $focused = $true
+                        # Walk up process tree from consolePid to find a window with HWND
+                        $cur = [int]$body.consolePid
+                        for ($i = 0; $i -lt 5; $i++) {
+                            $p = Get-Process -Id $cur -ErrorAction SilentlyContinue
+                            if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
+                                [WinUser]::ShowWindow($p.MainWindowHandle, 9) | Out-Null
+                                [WinUser]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+                                $focused = $true; break
+                            }
+                            $wi = Get-CimInstance Win32_Process -Filter "ProcessId=$cur" -Property ParentProcessId -ErrorAction SilentlyContinue
+                            if (-not $wi -or $wi.ParentProcessId -le 4) { break }
+                            $cur = $wi.ParentProcessId
+                        }
+
+                        # Fallback: AppActivate by PID (works for WT tabs)
+                        if (-not $focused) {
+                            $shell = New-Object -ComObject WScript.Shell
+                            $focused = $shell.AppActivate([int]$body.consolePid)
                         }
                     } catch {}
                 }
+
                 if (-not $focused -and $body.hwnd -and $body.hwnd -ne 0) {
                     $hwnd = [IntPtr]$body.hwnd
                     if ([WinUser]::IsWindow($hwnd)) {
@@ -99,11 +111,8 @@ try {
                         $focused = $true
                     }
                 }
-                if ($focused) {
-                    Send-Response $context 200 @{ ok = $true }
-                } else {
-                    Send-Response $context 404 @{ ok = $false; error = "no focusable window found" }
-                }
+
+                Send-Response $context 200 @{ ok = $focused; focused = $focused }
             }
             elseif ($path -eq "/launch" -and $method -eq "POST") {
                 $body = [System.IO.StreamReader]::new($req.InputStream).ReadToEnd() | ConvertFrom-Json
