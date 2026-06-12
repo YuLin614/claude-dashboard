@@ -90,13 +90,16 @@ try {
                 $body = [System.IO.StreamReader]::new($req.InputStream).ReadToEnd() | ConvertFrom-Json
                 $launchPath = $body.path
                 $label = $body.label
+                # Escape single quotes to prevent command injection
+                $safeLabel = "$label" -replace "'","''"
+                $safePath  = "$launchPath" -replace "'","''"
                 if (-not (Test-Path $launchPath)) {
-                    Send-Response $context 400 @{ ok = $false; error = "path not found: $launchPath" }
+                    Send-Response $context 400 @{ ok = $false; error = "path not found" }
                 } else {
                     Start-Process powershell.exe -ArgumentList @(
                         "-NoExit",
                         "-Command",
-                        "Set-Location '$launchPath'; Write-Host 'Starting Claude - $label'; claude"
+                        "Set-Location '$safePath'; Write-Host 'Starting Claude - $safeLabel'; claude"
                     )
                     Send-Response $context 200 @{ ok = $true; path = $launchPath }
                 }
@@ -111,7 +114,13 @@ try {
                     }
                     Send-Response $context 200 $result
                 } else {
-                    Send-Response $context 200 (Get-Worktrees $repoParam)
+                    # Only allow paths that are in the configured repos list
+                    $allowed = $config.repos | Where-Object { $_.path -eq $repoParam }
+                    if (-not $allowed) {
+                        Send-Response $context 403 @{ error = "repo path not in allowlist" }
+                    } else {
+                        Send-Response $context 200 (Get-Worktrees $repoParam)
+                    }
                 }
             }
             elseif ($path -eq "/health" -and $method -eq "GET") {
