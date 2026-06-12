@@ -183,7 +183,7 @@ async function loadLaunch() {
       return `<div class="repo-block">
         <div class="repo-name">${esc(repo.name)}</div>
         <select id="sel-${esc(repo.name)}">${opts}</select>
-        <button class="launch-btn" onclick="launch(${JSON.stringify(repo.name)})">Launch Claude</button>
+        <button class="launch-btn" onclick='launch(${JSON.stringify(repo.name)})'>Launch Claude</button>
       </div>`;
     }).join('');
   } catch(e) {
